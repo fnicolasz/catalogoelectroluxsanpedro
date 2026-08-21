@@ -325,11 +325,25 @@ async function cargarJSON(archivo){
   try{ const r=await fetch(archivo,{cache:'no-store'}); if(r.ok){ const d=await r.json(); if(Array.isArray(d)) return d; } }catch(_){}
   return null;
 }
+// Detecta garantías/servicios para que NUNCA aparezcan en el catálogo
+const RE_GARANTIA = /garant|extendid|servicio t|instalaci|p[oó]liza|cobertura|plan de protecc/i;
+const esGarantia = p => RE_GARANTIA.test(((p.nombre||'')+' '+(p.categoria||'')));
+
 async function cargar(){
   PRODUCTOS = await cargarJSON('productos.json') || [];
   GARANTIAS = await cargarJSON('garantias.json') || [];
   if(!PRODUCTOS.length) PRODUCTOS = DEMO;
   if(!GARANTIAS.length) GARANTIAS = DEMO_GAR;
+
+  // Reclasificación defensiva: si alguna garantía viene en productos.json,
+  // se saca del catálogo y se pasa a la pestaña Garantías (sin duplicar).
+  const colados = PRODUCTOS.filter(esGarantia);
+  if(colados.length){
+    PRODUCTOS = PRODUCTOS.filter(p=>!esGarantia(p));
+    const ids = new Set(GARANTIAS.map(g=>g.id));
+    colados.forEach(c=>{ if(!ids.has(c.id)){ GARANTIAS.push({id:c.id,ref:c.ref||'',nombre:c.nombre,marca:c.marca||''}); ids.add(c.id);} });
+  }
+
   document.getElementById('loading').hidden = true;
   pintarFiltros(); renderGrid();
 }

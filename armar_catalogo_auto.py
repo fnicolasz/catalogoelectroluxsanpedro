@@ -51,7 +51,7 @@ def categoria_de(nombre, categorias_vtex):
     return hoja[-1] if hoja else CATEGORIA_DEFECTO
 
 # Detecta garantías / servicios que NO deben ir en el catálogo oficial
-PATRON_GARANTIA = re.compile(r"garant|garantia|servicio t|instalaci", re.I)
+PATRON_GARANTIA = re.compile(r"garant|extendid|servicio t|instalaci|p[oó]liza|cobertura|plan de protecc", re.I)
 
 def es_garantia(prod):
     texto = (prod.get("productName") or "") + " " + " ".join(prod.get("categories") or [])
