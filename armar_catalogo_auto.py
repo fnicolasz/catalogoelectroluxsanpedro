@@ -50,6 +50,13 @@ def categoria_de(nombre, categorias_vtex):
     hoja = [t for t in (ruta or "").split("/") if t]
     return hoja[-1] if hoja else CATEGORIA_DEFECTO
 
+# Detecta garantías / servicios que NO deben ir en el catálogo oficial
+PATRON_GARANTIA = re.compile(r"garant|garantia|servicio t|instalaci", re.I)
+
+def es_garantia(prod):
+    texto = (prod.get("productName") or "") + " " + " ".join(prod.get("categories") or [])
+    return bool(PATRON_GARANTIA.search(texto))
+
 def cuadrar(url, lado=IMG_LADO):
     # inserta el resize cuadrado de VTEX: .../ids/123/... -> .../ids/123-800-800/...
     return re.sub(r"(/arquivos/ids/\d+)(?=/)", rf"\1-{lado}-{lado}", url)
@@ -125,25 +132,40 @@ def main():
     hojas = arbol_categorias()
     print(f"  {len(hojas)} categorías")
 
-    por_id = {}
+    por_id = {}          # catálogo oficial
+    garantias = {}       # etiqueta aparte, fuera del catálogo
     for cid in hojas:
         productos = productos_de_categoria(cid)
-        nuevos = 0
         for p in productos:
             if MARCAS and (p.get("brand") or "").lower() not in MARCAS:
                 continue
             pid = p.get("productId")
+            if es_garantia(p):
+                if pid not in garantias:
+                    garantias[pid] = {
+                        "id": str(pid or ""),
+                        "ref": str(p.get("productReference") or ""),
+                        "nombre": p.get("productName") or "",
+                        "marca": p.get("brand") or "",
+                        "categoria": "Garantía",
+                    }
+                continue
             if pid not in por_id:
                 item = a_catalogo(p)
                 if item:
                     por_id[pid] = item
-                    nuevos += 1
-        print(f"  cat {cid}: {len(productos)} productos ({len(por_id)} en total)")
+        print(f"  cat {cid}: {len(productos)} productos ({len(por_id)} catálogo · {len(garantias)} garantías)")
         time.sleep(PAUSA)
 
     salida = sorted(por_id.values(), key=lambda x: (x["categoria"], x["nombre"]))
     SALIDA.write_text(json.dumps(salida, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"\n✓ Listo: {len(salida)} productos escritos en {SALIDA.name}")
+
+    gar = sorted(garantias.values(), key=lambda x: x["nombre"])
+    (SALIDA.parent / "garantias.json").write_text(
+        json.dumps(gar, ensure_ascii=False, indent=2), encoding="utf-8")
+
+    print(f"\n✓ Catálogo oficial: {len(salida)} productos → {SALIDA.name}")
+    print(f"✓ Garantías (aparte): {len(gar)} → garantias.json")
 
 if __name__ == "__main__":
     main()
